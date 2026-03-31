@@ -1,0 +1,990 @@
+-- Create Tables
+
+CREATE TABLE customerss (
+customer_id NUMBER,
+customer_name VARCHAR2(50)
+);
+
+CREATE TABLE storess (
+store_id NUMBER,
+store_name VARCHAR2(50)
+);
+
+CREATE TABLE productss (
+product_id NUMBER,
+category VARCHAR2(50)
+);
+
+CREATE TABLE saless (
+sale_id NUMBER,
+customer_id NUMBER,
+store_id NUMBER,
+product_id NUMBER,
+sale_date DATE,
+amount NUMBER,
+quantity NUMBER,
+discount NUMBER
+);
+2. Insert Data (Auto Generate 1000 Rows)
+-- Customerss
+INSERT INTO customerss
+SELECT LEVEL, 'Cust_'||LEVEL FROM dual CONNECT BY LEVEL<=50;
+
+-- Stores
+INSERT INTO storess VALUES (1,'CMR');
+INSERT INTO storess VALUES (2,'SR');
+INSERT INTO storess VALUES (3,'Lucky');
+
+-- Products
+INSERT INTO productss VALUES (1,'Electronics');
+INSERT INTO productss VALUES (2,'Fashion');
+INSERT INTO productss VALUES (3,'Grocery');
+INSERT INTO productss VALUES (4,'Home');
+
+-- Saless (1000 rows)
+INSERT INTO saless
+SELECT 
+LEVEL,
+MOD(LEVEL,50)+1,
+MOD(LEVEL,3)+1,
+MOD(LEVEL,4)+1,
+DATE '2025-01-01' + MOD(LEVEL,90),
+ROUND(DBMS_RANDOM.VALUE(100,10000)),
+MOD(LEVEL,5)+1,
+CASE WHEN MOD(LEVEL,4)=0 THEN NULL ELSE ROUND(DBMS_RANDOM.VALUE(10,500)) END
+FROM dual
+CONNECT BY LEVEL <= 1000;
+1. Data Understanding
+Manager Requirement:
+Give me overall business performance summary for the last quarter.
+Questions:
+
+
+
+
+
+
+
+ select count(sale_id) as total_transactions from saless
+
+select sum(amount) as total_revenue from saless
+
+select count(distinct,customer_id) as total_unq_customers from customerss
+
+select count(distinct,'customer_id') as total_unq_customers from customerss
+
+select count(distinct customer_id) as total_unq_customers from customerss
+
+select avg(amount) as avg_order_value
+from saless
+
+select sum(quantity) as total_quantity
+from saless
+
+select max(amount)as maximum_sale_amount,min(amount) as minimum_sale_amount
+from saless
+
+select avg(discount) as avg_discount 
+from saless
+
+select store_id,sum(amount) as total_sales_per_store
+from saless 
+group by store_id
+
+select category,sum(amount) as total_sales_per_category
+from saless
+group by category
+
+select PRODUCT_ID,sum(amount) as total_sales_per_category
+from saless
+group by product_id
+
+select s.PRODUCT_ID,p.category,sum(amount) as total_sales_per_category
+from saless s
+inner join 
+ productss p
+ on s.product_id=p.product_id
+group by s.product_id,p.category
+
+
+-- 2. Data Cleaning
+-- Manager Requirement:
+-- Data looks inconsistent, fix NULL issues before analysis.
+-- Questions:
+-- 11.	Replace NULL discount with 0.
+
+select nvl(discount,0) as final_discount
+from sales
+
+-- 12.	Find number of NULL discounts.
+
+select count(*) as null_discount
+from SALESS
+where discount is null;
+
+-- 13.	Calculate net revenue (amount - discount).
+
+select sum(amount-nvl(discount,0)) as net_revenue
+from sales
+
+-- 14.	Replace NULL quantity with 1.
+
+select nvl(quantity,1) as null_quantity
+from SALESS
+
+-- 15.	Identify rows where amount is NULL.
+select *
+from saless 
+where amount is null
+
+-- 16.	Use COALESCE to handle multiple NULL columns.
+
+select coalesce (discount,quantity,0) as no_null
+from sales
+
+-- 17.	Create a cleaned column for revenue.
+
+select SALE_ID,coalesce(amount,0)-coalesce(discount,0) as cleaned_revenue
+from sales
+
+-- 18.	Check percentage of missing data.
+SELECT 
+
+    ROUND((COUNT(*) - COUNT(discount)) * 100.0 / COUNT(*),2) AS percent_null_discount
+FROM saless;
+
+-- 19.	Flag rows with missing values.
+
+select AMOUNT,DISCOUNT,QUANTITY,
+case
+     when
+     amount is null or DISCOUNT is null or QUANTITY is null  then 'missing'
+     else 'complete'
+     end as flag_rows
+     from saless 
+
+
+-- 20.	Prepare dataset for analysis.
+
+SELECT 
+    sale_id,
+    customer_id,
+    store_id,
+    product_id,
+    TRUNC(sale_date) AS sale_date,
+    COALESCE(amount, 0) AS amount,
+    COALESCE(discount, 0) AS discount,
+    COALESCE(quantity, 0) AS quantity,
+    COALESCE(amount, 0) - COALESCE(discount, 0) AS cleaned_revenue,
+    CASE 
+        WHEN amount IS NULL OR discount IS NULL THEN 'Missing'
+        ELSE 'Complete'
+    END AS data_flag
+
+FROM 
+    saless;
+
+
+-- 3. Filtering (WHERE)
+-- Manager Requirement:
+-- I want specific insights based on conditions.
+-- Questions:
+-- 21.	Find sales in last 30 days.
+
+select * 
+from saless 
+where sale_date between to_date('28-02-2025','dd-mm-yyyy') and to_date('29-03-2025','dd-mm-yyyy')
+
+
+-- 22.	Find sales above 5000.
+select * from saless where amount > 5000
+
+
+-- 23.	Find sales between 1000 and 5000.
+
+select * from saless where amount between 1000 and 5000
+
+-- 24.	Find sales from CMR store.
+
+select l.STORE_NAME,s.STORE_ID,s.AMOUNT from saless s 
+inner join storess l 
+on s.store_id=l.store_id
+where l.store_name ='CMR'
+
+-- 25.	Find Electronics category sales.
+
+SELECT 
+    SUM(s.amount) AS electronics_sales
+FROM 
+    SALESS s
+inner join
+    productss p
+ON 
+    s.product_id = p.product_id
+WHERE 
+    p.category = 'Electronics';
+
+-- 26.	Find sales excluding Grocery category.
+
+select sum(s.amount) as sales_exc_grocery
+from saless s 
+inner join productss p
+on s.product_id = p.product_id
+where p.category not in 'grocery' 
+
+-- 27.	Find customers from specific store.
+
+SELECT DISTINCT 
+    c.customer_id,
+    c.customer_name
+FROM 
+    customerss c
+JOIN 
+    saless s ON c.customer_id = s.customer_id
+JOIN 
+    storess st ON s.store_id = st.store_id
+WHERE 
+    st.store_name IN ('CMR', 'SR','Lucky');
+
+-- 28.	Find high discount transactions.
+select *
+from saless 
+where discount is not null
+order by discount desc
+fetch first 10 rows only
+
+-- 29.	Find low quantity sales.
+select * from saless
+where quantity is not null 
+order by quantity
+fetch first 10 rows only
+
+-- 30.	Find recent transactions.
+
+select * from saless
+where sale_date between  to_date('01-03-2025','dd-mm-yyyy') and to_date('29-03-2025','dd-mm-yyyy')
+
+-- 4. Aggregation (GROUP BY)
+-- Manager Requirement:
+-- Break down performance across business segments.
+-- Questions:
+-- 31.	Revenue per store.
+
+select t.STORE_NAME,s.store_id,sum(amount) as revenue_per_store
+from saless s
+inner join 
+storess t 
+on s.store_id = t.store_id
+group by t.store_name,s.store_id
+-- 32.	Revenue per category.
+select p.category,s.product_id,sum(amount) as revenue_per_category
+from saless s
+inner join 
+productss p 
+on s.product_id=p.product_id
+group by p.category,s.product_id
+-- 33.	Revenue per customer.
+select c.customer_name,s.CUSTOMER_ID,sum(amount) as revenue_per_customer
+from saless s
+inner join 
+customerss c  
+on s.customer_id = c.customer_id
+group by c.customer_name,s.CUSTOMER_ID
+-- 34.	Monthly revenue.
+SELECT 
+    TO_CHAR(sale_date, 'YYYY-MM') AS month,
+    SUM(amount) AS total_revenue
+FROM 
+    SALESS
+GROUP BY 
+    TO_CHAR(sale_date, 'YYYY-MM')
+ORDER BY 
+    month;
+  
+-- 35.	Daily revenue.
+    select sale_date,sum(AMOUNT) as daily_revenue
+    from saless 
+    group by sale_date
+    order by sale_date
+-- 36.	Average sales per store.
+
+select t.store_name,avg(amount) as average_sale_per_store
+from saless s 
+inner join 
+storess t 
+on s.store_id = t.store_id 
+group by t.store_name
+-- 37.	Total quantity per category.
+select p.category,sum(quantity) as qty_per_cat
+from saless s 
+inner join productss p 
+on s.product_id = p.product_id
+group by p.category
+-- 38.	Total discount per store.
+select t.store_name,sum(discount) as dis_per_store
+from saless s 
+inner join 
+storess t 
+on s.store_id = t.store_id
+group by t.store_name
+-- 39.	Customer-wise total spending.
+select c.customer_name, sum(amount) as cus_wise_spending
+from saless s 
+inner join 
+customerss c 
+on s.customer_id = c.customer_id
+group by c.customer_name
+-- 40.	Store-wise transaction count.
+select t.store_name,count(sale_id) store_wise_sales
+from saless s 
+inner join 
+storess t 
+on s.store_id = t.store_id
+group by t.store_name
+
+-- 5. HAVING
+-- Manager Requirement:
+-- Find top performing segments.
+-- Questions:
+-- 41.	Customers with revenue > 20000.
+select c.customer_name,sum(amount) as cus_rev_20000
+from saless s 
+inner join 
+customerss c
+on s.customer_id = c.customer_id
+group by c.customer_name 
+having sum(amount) > 20000
+-- 42.	Stores with revenue > 100000.
+select t.store_name,sum(amount) as store_rev_100000
+from saless s 
+inner join 
+storess t 
+on s.store_id = t.store_id
+group by t.store_name 
+having sum(amount) > 100000
+-- 43.	Categories with avg sales > 3000.
+select p.category,avg(amount) as avg_cat_300
+from saless s 
+inner join productss p 
+on s.product_id=p.product_id
+group by p.category 
+having avg(amount)>3000
+-- 44.	Customers with more than 5 transactions.
+select c.customer_name,count(sale_id) as count_trans
+from saless s 
+inner join 
+customerss c
+on s.customer_id = c.customer_id
+group by c.customer_name
+having count(sale_id) > 5
+-- 45.	Stores with high discount usage.
+select t.store_name,sum(nvl(discount,0))
+from saless s 
+inner join 
+storess t 
+on s.store_id = t.store_id
+group by t.store_name 
+having sum(nvl(discount,0)) > 5000
+
+
+-- 46.	Categories with low performance.
+select p.category,sum(amount) as low_cat_sale
+from saless s 
+inner join 
+productss p
+on s.product_id = p.PRODUCT_ID
+group by p.category 
+having sum(AMOUNT) < 1214186
+
+-- 47.	Customers with high avg order value.
+select c.customer_name, avg(amount) as high_avg_order
+from saless s 
+inner join 
+customerss c
+on s.customer_id = c.customer_id
+group by c.customer_name
+having avg(amount) > 5000
+-- 48.	Find top 5 customers using HAVING.
+select c.customer_name,sum(amount) as top_customers
+from saless s 
+inner join 
+customerss c
+on s.customer_id = c.customer_id
+group by c.customer_name
+having sum(amount) > 5000
+order by  top_customers desc 
+fetch first 5 rows only
+-- 49.	Stores with max transactions.
+select t.store_name,count(sale_id) as max_transactions
+from saless s 
+inner join
+storess t 
+on s.store_id=t.store_id
+group by t.store_name
+having count(sale_id) > 5
+order by max_transactions desc
+fetch first 2 rows only
+
+-- 50.	Categories with high growth.
+SELECT 
+    p.category,
+    SUM(amount) AS total_sales
+FROM 
+    saless s
+JOIN 
+    productss p ON s.product_id = p.product_id
+GROUP BY 
+    p.category
+HAVING 
+    SUM(amount) > 50000;
+    order by total_sales desc
+
+--     6. CASE WHEN
+-- Manager Requirement:
+-- Segment customers for business decisions.
+-- Questions:
+-- 51.	Classify customers as High/Medium/Low spenders.
+SELECT 
+    customer_id,
+    SUM(amount) AS total_spent,
+    CASE 
+        WHEN SUM(amount) > 100000 THEN 'High'
+        WHEN SUM(amount) > 70000 THEN 'Medium'
+        ELSE 'Low'
+    END AS spender_type
+FROM SALESS
+GROUP BY customer_id;
+-- 52.	Classify transactions as Big/Small.
+SELECT 
+    sale_id,
+    amount,
+    CASE 
+        WHEN amount > 5000 THEN 'Big'
+        ELSE 'Small'
+    END AS transaction_type
+FROM SALESS;
+-- 53.	Create discount flag.
+SELECT 
+    sale_id,
+    discount,
+    CASE 
+        WHEN discount IS NULL OR discount = 0 THEN 'No Discount'
+        ELSE 'Discount Applied'
+    END AS discount_flag
+FROM saless;
+-- 54.	Segment stores based on revenue.
+SELECT 
+    store_id,
+    SUM(amount) AS total_sales,
+    CASE 
+        WHEN SUM(amount) > 1650000 THEN 'High Revenue'
+        WHEN SUM(amount) > 1600000 THEN 'Medium'
+        ELSE 'Low'
+    END AS store_segment
+FROM saless
+GROUP BY store_id;
+-- 55.	Categorize customers based on frequency.
+SELECT 
+    customer_id,
+    COUNT(*) AS transactions,
+    CASE 
+        WHEN COUNT(*) > 30 THEN 'Frequent'
+        WHEN COUNT(*) BETWEEN 10 AND 30 THEN 'Occasional'
+        ELSE 'Rare'
+    END AS frequency_type
+FROM sales
+GROUP BY customer_id;
+-- 56.	Create sales buckets.
+SELECT 
+    sale_id,
+    amount,
+    CASE 
+        WHEN amount < 1000 THEN 'Low'
+        WHEN amount BETWEEN 1000 AND 5000 THEN 'Medium'
+        ELSE 'High'
+    END AS sales_bucket
+FROM saless;
+-- 57.	Identify premium customers.
+SELECT 
+    customer_id,
+    SUM(amount) AS total_spent,
+    CASE 
+        WHEN SUM(amount) > 70000 THEN 'Premium'
+        ELSE 'Regular'
+    END AS customer_type
+FROM saless 
+GROUP BY customer_id;
+-- 58.	Mark high-value transactions.
+SELECT 
+    sale_id,
+    amount,
+    CASE 
+        WHEN amount > 8000 THEN 'High Value'
+        ELSE 'Normal'
+    END AS transaction_flag
+FROM saless;
+-- 59.	Classify categories based on performance.
+SELECT 
+    p.category,
+    SUM(amount) AS total_sales,
+    CASE 
+        WHEN SUM(amount) > 80000 THEN 'Top Performer'
+        WHEN SUM(amount) BETWEEN 40000 AND 80000 THEN 'Average'
+        ELSE 'Low Performer'
+    END AS category_performance
+FROM SALESS s
+JOIN productss p ON s.product_id = p.product_id
+GROUP BY p.category;
+-- 60.	Create custom labels for reporting.
+SELECT 
+    sale_id,
+    amount,
+    discount,
+    CASE 
+        WHEN discount > 300 THEN 'High Discount Sale'
+        WHEN amount > 5000 THEN 'High Revenue Sale'
+        ELSE 'Regular Sale'
+    END AS custom_label
+FROM saless;
+
+-- JOINS (Multiple Tables)
+-- Manager Requirement:
+-- Combine customer, product, and store data for insights.
+-- Questions:
+-- 61.	Join sales with customers table.
+SELECT s.*, c.customer_name
+FROM saless s
+JOIN customerss c 
+ON s.customer_id = c.customer_id;
+-- 62.	Join sales with stores table.
+SELECT s.*, st.store_name
+FROM saless s
+JOIN storess st 
+ON s.store_id = st.store_id;
+-- 63.	Join sales with products table.
+SELECT s.*, p.category
+FROM saless s
+JOIN productss p 
+ON s.product_id = p.product_id;
+-- 64.	Find customer name with store name and sales.
+SELECT 
+    c.customer_name,
+    st.store_name,
+    amount
+FROM SALESS s
+JOIN customerss c ON s.customer_id = c.customer_id
+JOIN storess st ON s.store_id = st.store_id;
+-- 65.	Find category-wise revenue using joins.
+SELECT 
+    p.category,
+    SUM(amount) AS revenue
+FROM saless s
+JOIN productss p ON s.product_id = p.product_id
+GROUP BY p.category;
+-- 66.	Find store-wise customer count.
+SELECT 
+    t.store_name,
+    COUNT(DISTINCT s.customer_id) AS customer_count
+FROM saless s
+JOIN storess t ON s.store_id = t.store_id
+GROUP BY t.store_name;
+-- 67.	Find top product per store.
+SELECT *
+FROM (
+    SELECT 
+        s.store_id,
+        s.product_id,
+        SUM(amount) total_sales,
+        RANK() OVER (PARTITION BY s.store_id ORDER BY SUM(amount) DESC) rnk
+    FROM saless s
+    GROUP BY s.store_id, s.product_id
+)
+WHERE rnk = 1;
+-- 68.	Find customers who purchased from multiple stores.
+SELECT 
+    customer_id
+FROM saless
+GROUP BY customer_id
+HAVING COUNT(DISTINCT store_id) > 1;
+-- 69.	Find sales with product category.
+SELECT 
+    s.sale_id,
+    s.amount,
+    p.category
+FROM saless s
+JOIN productss p ON s.product_id = p.product_id;
+-- 70.	Find revenue per customer per store.
+SELECT 
+    customer_id,
+    store_id,
+    SUM(amount) AS revenue
+FROM SALESS
+GROUP BY customer_id, store_id;
+-- 71.	Find customers with no transactions (LEFT JOIN).
+SELECT 
+    c.customer_id,
+    c.customer_name
+FROM customerss c
+LEFT JOIN saless s 
+ON c.customer_id = s.customer_id
+WHERE s.customer_id IS NULL;
+-- 72.	Find missing product mappings.
+SELECT 
+    s.*
+FROM saless s
+LEFT JOIN productss p 
+ON s.product_id = p.product_id
+WHERE p.product_id IS NULL;
+-- 73.	Find store performance using joins.
+SELECT 
+    st.store_name,
+    SUM(amount) AS revenue
+FROM saless s
+JOIN storess st ON s.store_id = st.store_id
+GROUP BY st.store_name;
+-- 74.	Find cross-category purchases.
+SELECT 
+    customer_id
+FROM saless s
+JOIN productss p ON s.product_id = p.product_id
+GROUP BY customer_id
+HAVING COUNT(DISTINCT p.category) > 1;
+-- 75.	Find total revenue using joins.
+SELECT 
+    SUM(amount) AS total_revenue
+FROM SALESS s
+JOIN productss p ON s.product_id = p.product_id;
+
+-- 8. Window Functions
+-- Manager Requirement:
+-- Provide advanced analytics without losing row-level data.
+-- Questions:
+-- 76.	Calculate total spend per customer using window function.
+SELECT 
+    customer_id,
+    amount,
+    SUM(amount) OVER (PARTITION BY customer_id) AS total_spend
+FROM saless;
+-- 77.	Rank customers by revenue.
+SELECT 
+    customer_id,
+    SUM(amount) total_sales,
+    RANK() OVER (ORDER BY SUM(amount) DESC) rnk
+FROM saless
+GROUP BY customer_id;
+-- 78.	Find top customer per store.
+SELECT *
+FROM (
+    SELECT 
+        store_id,
+        customer_id,
+        SUM(amount) total_sales,
+        RANK() OVER (PARTITION BY store_id ORDER BY SUM(amount) DESC) rnk
+    FROM saless
+    GROUP BY store_id, customer_id
+)
+WHERE rnk = 1;
+-- 79.	Calculate running total of sales.
+SELECT 
+    sale_date,
+    amount,
+    SUM(amount) OVER (ORDER BY sale_date) AS running_total
+FROM saless;
+-- 80.	Find previous sale using LAG.
+SELECT 
+    sale_id,
+    amount,
+    LAG(amount) OVER (ORDER BY sale_id) AS previous_sale
+FROM saless;
+-- 81.	Find next sale using LEAD.
+SELECT 
+    sale_id,
+    amount,
+    LEAD(amount) OVER (ORDER BY sale_id) AS next_sale
+FROM saless;
+-- 82.	Calculate sales growth.
+SELECT 
+    sale_id,
+    amount,
+    amount - LAG(amount) OVER (ORDER BY sale_id) AS growth
+FROM saless;
+-- 83.	Find difference between transactions.
+SELECT 
+    sale_id,
+    amount,
+    amount - LAG(amount) OVER (ORDER BY sale_id) AS difference
+FROM saless;
+-- 84.	Calculate cumulative revenue.
+SELECT 
+    sale_date,
+    SUM(amount) OVER (ORDER BY sale_date) AS cumulative_revenue
+FROM saless;
+-- 85.	Find moving average of sales.
+SELECT 
+    sale_date,
+    amount,
+    AVG(amount) OVER (ORDER BY sale_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg
+FROM saless;
+-- 86.	Rank stores by revenue.
+SELECT 
+    store_id,
+    SUM(amount) total_sales,
+    RANK() OVER (ORDER BY SUM(amount) DESC) rnk
+FROM saless
+GROUP BY store_id;
+-- 87.	Find second highest sale.
+SELECT *
+FROM (
+    SELECT 
+        amount,
+        DENSE_RANK() OVER (ORDER BY amount DESC) rnk
+    FROM saless
+)
+WHERE rnk = 2;
+-- 88.	Partition data by store and analyze.
+SELECT 
+    store_id,
+    amount,
+    SUM(amount) OVER (PARTITION BY store_id) AS store_total
+FROM saless;
+-- 89.	Find customer ranking per store.
+SELECT 
+    store_id,
+    customer_id,
+    SUM(amount) total_sales,
+    RANK() OVER (PARTITION BY store_id ORDER BY SUM(amount) DESC) rnk
+FROM saless 
+GROUP BY store_id, customer_id;
+-- 90.	Calculate frequency using window.
+SELECT 
+    customer_id,
+    COUNT(*) OVER (PARTITION BY customer_id) AS transaction_count
+FROM saless;
+
+-- 9. NTILE / Segmentation
+-- Manager Requirement:
+-- Segment customers for marketing.
+-- Questions:
+-- 91.	Divide customers into 4 segments.
+SELECT 
+    customer_id,
+    SUM(amount) total_sales,
+    NTILE(4) OVER (ORDER BY SUM(amount) DESC) AS segment
+FROM saless 
+GROUP BY customer_id;
+-- 92.	Identify top 25% customers.
+SELECT *
+FROM (
+    SELECT 
+        customer_id,
+        SUM(amount) total_sales,
+        NTILE(4) OVER (ORDER BY SUM(amount) DESC) seg
+    FROM saless 
+    GROUP BY customer_id
+)
+WHERE seg = 1;
+-- 93.	Identify bottom 25% customers.
+SELECT *
+FROM (
+    SELECT 
+        customer_id,
+        SUM(amount) total_sales,
+        NTILE(4) OVER (ORDER BY SUM(amount) DESC) seg
+    FROM saless
+    GROUP BY customer_id
+)
+WHERE seg = 4;
+-- 94.	Segment stores into 3 groups.
+SELECT 
+    store_id,
+    SUM(amount) total_sales,
+    NTILE(3) OVER (ORDER BY SUM(amount) DESC) segment
+FROM SALESS
+GROUP BY store_id;
+-- 95.	Create quartiles based on revenue.
+SELECT 
+    customer_id,
+    SUM(amount),
+    NTILE(4) OVER (ORDER BY SUM(amount)) quartile
+FROM saless
+GROUP BY customer_id;
+-- 96.	Segment customers per store.
+SELECT 
+    store_id,
+    customer_id,
+    SUM(amount),
+    NTILE(3) OVER (PARTITION BY store_id ORDER BY SUM(amount) DESC) seg
+FROM SALESS
+GROUP BY store_id, customer_id;
+-- 97.	Identify premium segment.
+SELECT *
+FROM (
+    SELECT 
+        customer_id,
+        SUM(amount),
+        NTILE(4) OVER (ORDER BY SUM(amount) DESC) seg
+    FROM saless
+    GROUP BY customer_id
+)
+WHERE seg = 1;
+-- 98.	Find mid-level customers.
+SELECT *
+FROM (
+    SELECT 
+        customer_id,
+        SUM(amount),
+        NTILE(4) OVER (ORDER BY SUM(amount) DESC) seg
+    FROM saless
+    GROUP BY customer_id
+)
+WHERE seg IN (2,3);
+-- 99.	Analyze bucket distribution.
+SELECT 
+    seg,
+    COUNT(*) customers
+FROM (
+    SELECT 
+        customer_id,
+        NTILE(4) OVER (ORDER BY SUM(amount) DESC) seg
+    FROM saless
+    GROUP BY customer_id
+)
+GROUP BY seg;
+-- 100.	Create marketing segments.
+SELECT 
+    customer_id,
+    SUM(amount),
+    CASE 
+        WHEN NTILE(4) OVER (ORDER BY SUM(amount) DESC) = 1 THEN 'VIP'
+        WHEN NTILE(4) OVER (ORDER BY SUM(amount) DESC) = 2 THEN 'Gold'
+        WHEN NTILE(4) OVER (ORDER BY SUM(amount) DESC) = 3 THEN 'Silver'
+        ELSE 'Bronze'
+    END AS segment
+FROM SALESS
+GROUP BY customer_id;
+
+-- 10. FIRST_VALUE / LAST_VALUE
+-- Manager Requirement:
+-- Compare performance with best and worst.
+-- Questions:
+-- 101.	Find highest sale.
+SELECT MAX(amount) FROM saless;
+-- 102.	Find lowest sale.
+SELECT MIN(amount) FROM saless;
+-- 103.	Compare each sale with highest.
+SELECT 
+    sale_id,
+    amount,
+    FIRST_VALUE(amount) OVER (ORDER BY amount DESC) AS highest
+FROM saless;
+-- 104.	Compare each sale with lowest.
+SELECT 
+    sale_id,
+    amount,
+    FIRST_VALUE(amount) OVER (ORDER BY amount ) AS Lowest
+FROM saless;
+-- 105.	Find highest sale per store.
+SELECT 
+    store_id,
+    amount,
+    FIRST_VALUE(amount) OVER (PARTITION BY store_id ORDER BY amount DESC) AS highest
+FROM saless;
+-- 106.	Find lowest sale per store.
+SELECT 
+    store_id,
+    amount,
+    FIRST_VALUE(amount) OVER (PARTITION BY store_id ORDER BY amount ASC) AS lowest
+FROM saless;
+-- 107.	Compare category performance.
+SELECT 
+    p.category,
+    SUM(amount),
+    FIRST_VALUE(SUM(s.amount)) OVER (ORDER BY SUM(amount) DESC) AS best_category
+FROM SALESS s
+JOIN productss p ON s.product_id = p.product_id
+GROUP BY p.category;
+-- 108.	Find best customer per store.
+SELECT *
+FROM (
+    SELECT 
+        store_id,
+        customer_id,
+        SUM(amount),
+        RANK() OVER (PARTITION BY store_id ORDER BY SUM(amount) DESC) rnk
+    FROM saless 
+    GROUP BY store_id, customer_id
+)
+WHERE rnk = 1;
+-- 109.	Find worst performing category.
+SELECT *
+FROM (
+    SELECT 
+        p.category,
+        SUM(amount),
+        RANK() OVER (ORDER BY SUM(amount)) rnk
+    FROM SALESS s
+    JOIN productss p ON s.product_id = p.product_id
+    GROUP BY p.category
+)
+WHERE rnk = 1;
+-- 110.	Analyze gap between best and worst
+SELECT 
+    MAX(amount) - MIN(amount) AS gap
+FROM saless;
+
+
+-- 11. Date Analysis
+-- Manager Requirement:
+-- Analyze time-based trends.
+-- Questions:
+-- 111.	Find daily sales.
+SELECT 
+    sale_date,
+    SUM(amount)
+FROM SALESS
+GROUP BY sale_date;
+-- 112.	Find monthly sales.
+SELECT 
+    TRUNC(sale_date,'MM'),
+    SUM(amount)
+FROM saless
+GROUP BY TRUNC(sale_date,'MM');
+-- 113.	Find weekend sales.
+SELECT *
+FROM saless
+WHERE TO_CHAR(sale_date,'DY') IN ('SAT','SUN');
+-- 114.	Find first sale date.
+select min(sale_date) from saless 
+-- 115.	Find last sale date.
+select max(sale_date) from saless
+-- 116.	Find sales in specific month.
+SELECT *
+FROM saless
+WHERE TO_CHAR(sale_date,'MM') = '01';
+-- 117.	Find sales growth month-wise.
+SELECT 
+    month,
+    total_sales,
+    total_sales - LAG(total_sales) OVER (ORDER BY month) growth
+FROM (
+    SELECT 
+        TRUNC(sale_date,'MM') month,
+        SUM(amount) total_sales
+    FROM saless
+    GROUP BY TRUNC(sale_date,'MM')
+);
+-- 118.	Find inactive customers (30 days).
+SELECT customer_id
+FROM saless
+GROUP BY customer_id
+HAVING MAX(sale_date) < SYSDATE - 30;
+-- 119.	Find repeat customers.
+SELECT customer_id
+FROM saless
+GROUP BY customer_id
+HAVING COUNT(*) > 1;
+-- 120.	Find sales trend.
+SELECT 
+    sale_date,
+    SUM(amount) OVER (ORDER BY sale_date) AS trend
+FROM saless;
